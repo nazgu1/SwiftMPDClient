@@ -34,13 +34,13 @@ protocol MPDService {
 @available(macOS 14.0, *)
 @Observable
 public final class MPDClient: MPDService {
-    private var connection = MPDConnection(host: "127.0.0.1", port: 6600)
+    private var connection: MPDConnection
     public var status: MPDConnectionStatus = .disconnected
     private var delegates: [MPDClientDelegate] = []
     
     var songs = [MPDSong]()
     
-    public init(connection: MPDConnection = MPDConnection(host: "127.0.0.1", port: 6600), status: MPDConnectionStatus = .disconnected, delegates: [MPDClientDelegate] = [], songs: [MPDSong] = [MPDSong]()) {
+    public init(connection: MPDConnection, status: MPDConnectionStatus = .disconnected, delegates: [MPDClientDelegate] = [], songs: [MPDSong] = [MPDSong]()) {
         self.connection = connection
         self.status = status
         self.delegates = delegates

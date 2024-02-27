@@ -9,9 +9,11 @@ import Foundation
 
 @available(macOS 10.15, *)
 public final actor MPDBinaryFetcher {
-    private let connection = MPDConnection(host: "127.0.0.1", port: 6600)
+    private let connection: MPDConnection
     
-    public init() {}
+    public init(connection: MPDConnection) {
+        self.connection = connection
+    }
     
     public func fetchAlbumArt(path: String) async throws -> Data {
         var size = 0
