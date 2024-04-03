@@ -8,6 +8,7 @@
 import Foundation
 import Network
 
+@available(iOS 13.0, *)
 protocol MPDConnectable {
     func connect() async throws
     func disconnect() async
@@ -17,6 +18,7 @@ protocol MPDConnectable {
 }
 
 @available(macOS 10.15, *)
+@available(iOS 13.0, *)
 public final actor MPDConnection: MPDConnectable {
     private let host: NWEndpoint.Host
     private let port: NWEndpoint.Port

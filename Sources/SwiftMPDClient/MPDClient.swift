@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 public enum MPDConnectionStatus {
     case disconnected
@@ -19,6 +20,7 @@ public protocol MPDClientDelegate {
     func onRefresh(playStatus: MPDStatus, queue: [MPDQueueItem])
 }
 
+@available(iOS 13.0, *)
 protocol MPDService {
     var status: MPDConnectionStatus { get }
     
@@ -32,8 +34,10 @@ protocol MPDService {
 }
 
 @available(macOS 14.0, *)
+@available(iOS 17.0, *)
 @Observable
 public final class MPDClient: MPDService {
+    private let logger: Logger
     private var connection: MPDConnection
     public var status: MPDConnectionStatus = .disconnected
     private var delegates: [MPDClientDelegate] = []
@@ -41,10 +45,12 @@ public final class MPDClient: MPDService {
     var songs = [MPDSong]()
     
     public init(connection: MPDConnection, status: MPDConnectionStatus = .disconnected, delegates: [MPDClientDelegate] = [], songs: [MPDSong] = [MPDSong]()) {
+        self.logger = Logger(forType: Self.self)
         self.connection = connection
         self.status = status
         self.delegates = delegates
         self.songs = songs
+        logger.info("Initialized")
     }
     
     public func append(delegate: MPDClientDelegate) {
@@ -53,16 +59,19 @@ public final class MPDClient: MPDService {
     
     public func connect() {
         guard status != .connected else {
-            print("Try to connect when connected")
+            logger.info("Try to connect when connected")
             return
         }
         
+        logger.info("Connecting…")
         status = .connecting
         Task {
             do {
                 try await connection.connect()
-            } catch {
+                logger.info("Connected")
+            } catch let e {
                 status = .disconnected
+                logger.info("Error when conecting \(e.localizedDescription)")
             }
             status = .connected
             _ = try? await fetchLibrary()
@@ -71,9 +80,11 @@ public final class MPDClient: MPDService {
     }
     
     public func disconnect() {
+        logger.info("Disconnecting…")
         Task {
             await connection.disconnect()
             status = .disconnected
+            logger.info("Disconnected")
             
             for d in delegates {
                 DispatchQueue.main.async {
@@ -85,15 +96,19 @@ public final class MPDClient: MPDService {
     
     private func send(_ command: MPDCommand) async throws {
         guard let data = "\(command.rawValue)\n".data(using: .utf8) else {
+            logger.info("Command malformed")
             throw MPDError.requestMalformed
         }
         try await connection.send(data)
+        logger.info("Command \(command.rawValue) sent")
     }
     
     private func receive() async throws -> [String] {
         let data = try await connection.receive()
+        logger.info("Data received")
         
         guard let response = String(data: data, encoding: .utf8) else {
+            logger.info("Data is not in utf-8!")
             throw MPDError.responseError
         }
         return response.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\n")
@@ -318,6 +333,7 @@ public final class MPDClient: MPDService {
 }
 
 @available(macOS 14.0, *)
+@available(iOS 17.0, *)
 @Observable
 public final class MPDLibraryManager {
     private var client: MPDClient

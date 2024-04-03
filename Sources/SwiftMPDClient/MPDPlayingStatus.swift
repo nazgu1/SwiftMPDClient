@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 
 @available(macOS 14.0, *)
+@available(iOS 17.0, *)
 @Observable
 public final class MPDPlayStatus: MPDClientDelegate {
     private var client: MPDClient

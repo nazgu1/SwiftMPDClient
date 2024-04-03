@@ -8,6 +8,7 @@
 import Foundation
 
 @available(macOS 10.15, *)
+@available(iOS 13.0, *)
 actor Semaphore {
     private var count: Int
     private var waiters: [CheckedContinuation<Void, Never>] = []
