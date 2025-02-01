@@ -13,8 +13,8 @@ protocol MPDConnectable {
     func connect() async throws
     func disconnect() async
     
-    func send(_ data: Data) async throws
-    func receive() async throws -> Data
+    func send(_ data: Data) async throws -> Data
+//    func receive() async throws
 }
 
 @available(macOS 10.15, *)
@@ -23,12 +23,15 @@ public final actor MPDConnection: MPDConnectable {
     private let host: NWEndpoint.Host
     private let port: NWEndpoint.Port
     private var connection: NWConnection?
-    private let queue: DispatchQueue = .init(label: "pl.dziurdzia.orchestra.MPDConnectionQueue")
+    private let queue: DispatchQueue
+    private let mpdQueue: DispatchQueue
     private var semaphore = Semaphore(count: 1)
     
     public init(host: String, port: UInt16) {
         self.host = NWEndpoint.Host(host)
         self.port = NWEndpoint.Port(rawValue: port)!
+        queue = .init(label: "pl.dziurdzia.orchestra.MPDConnectionQueue")
+        mpdQueue = .init(label: "pl.dziurdzia.orchestra.MPDQueue")
     }
     
     func connect() async throws {
@@ -49,10 +52,21 @@ public final actor MPDConnection: MPDConnectable {
                 }
             }
         }
+        
+        connection.stateUpdateHandler = { newState in
+            switch newState {
+            case .ready:
+                print("Connected to MPD.")
+            case .failed(let error):
+                print("Failed to connect with error \(error)")
+            default:
+                break
+            }
+        }
 
         self.connection = connection
         
-        guard let data = try? await _receive(),
+        guard let data = try? await receivePart(),
               let response = String(data: data, encoding: .utf8),
               response.contains("OK MPD")
         else {
@@ -65,13 +79,14 @@ public final actor MPDConnection: MPDConnectable {
         connection = nil
     }
     
-    func send(_ data: Data) async throws {
+    func send(_ data: Data) async throws -> Data {
         guard let connection = connection else {
             throw MPDError.notConnected
         }
+        
         await semaphore.wait()
         
-        return try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             connection.send(content: data, completion: .contentProcessed { error in
                 if let error = error {
                     continuation.resume(throwing: error)
@@ -80,12 +95,16 @@ public final actor MPDConnection: MPDConnectable {
                 continuation.resume()
             })
         }
+            
+        let returned = await try receive()
+        await semaphore.release()
+        return returned
     }
     
-    func receive() async throws -> Data {
+    private func receive() async throws -> Data {
         var response = Data()
         repeat {
-            let data = try await _receive()
+            let data = try await receivePart()
             response.append(data)
             
             if data.range(of: "OK\n".data(using: .utf8)!) != nil ||
@@ -96,11 +115,10 @@ public final actor MPDConnection: MPDConnectable {
             
         } while true
         
-        await semaphore.release()
         return response
     }
     
-    private func _receive() async throws -> Data {
+    private func receivePart() async throws -> Data {
         guard let connection = connection else {
             throw MPDError.notConnected
         }

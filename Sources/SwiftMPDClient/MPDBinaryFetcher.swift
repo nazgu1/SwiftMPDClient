@@ -25,8 +25,7 @@ public final actor MPDBinaryFetcher {
         
         repeat {
             let cmd = "albumart \"\(path)\" \(offset)\n"
-            try await connection.send(cmd.data(using: .utf8)!)
-            let data = try await connection.receive()
+            let data = try await connection.send(cmd.data(using: .utf8)!)
             
             let separator = "\n".data(using: .utf8)!
             let range = data.range(of: separator)

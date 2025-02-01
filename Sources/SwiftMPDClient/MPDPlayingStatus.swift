@@ -11,6 +11,7 @@ import SwiftUI
 @available(macOS 14.0, *)
 @available(iOS 17.0, *)
 @Observable
+@MainActor
 public final class MPDPlayStatus: MPDClientDelegate {
     private var client: MPDClient
     private var status: MPDStatus = .init()

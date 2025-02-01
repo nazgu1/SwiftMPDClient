@@ -36,6 +36,7 @@ protocol MPDService {
 @available(macOS 14.0, *)
 @available(iOS 17.0, *)
 @Observable
+@MainActor
 public final class MPDClient: MPDService {
     private let logger: Logger
     private var connection: MPDConnection
@@ -94,20 +95,16 @@ public final class MPDClient: MPDService {
         }
     }
     
-    private func send(_ command: MPDCommand) async throws {
+    private func send(_ command: MPDCommand) async throws -> [String] {
         guard let data = "\(command.rawValue)\n".data(using: .utf8) else {
             logger.info("Command malformed")
             throw MPDError.requestMalformed
         }
-        try await connection.send(data)
-        logger.info("Command \(command.rawValue) sent")
-    }
-    
-    private func receive() async throws -> [String] {
-        let data = try await connection.receive()
+        logger.info("Sending \(command.rawValue) command")
+        let response = try await connection.send(data)
         logger.info("Data received")
         
-        guard let response = String(data: data, encoding: .utf8) else {
+        guard let response = String(data: response, encoding: .utf8) else {
             logger.info("Data is not in utf-8!")
             throw MPDError.responseError
         }
@@ -115,8 +112,7 @@ public final class MPDClient: MPDService {
     }
     
     private func fire(command: MPDCommand) async throws {
-        try await send(command)
-        _ = try await receive()
+        _ = try await send(command)
     }
     
     func fetchLibrary() async throws -> [MPDSong] {
@@ -125,8 +121,7 @@ public final class MPDClient: MPDService {
             throw MPDError.notConnected
         }
         
-        try await send(.search(filter: "(base '')"))
-        let lines = try await receive()
+        let lines = try await send(.search(filter: "(base '')"))
             
         var songs: [MPDSong] = []
         var songDict: [String: String] = [:]
@@ -163,8 +158,7 @@ public final class MPDClient: MPDService {
     }
     
     func getQueue() async throws -> [MPDQueueItem] {
-        try await send(.playlistinfo)
-        let lines = try await receive()
+        let lines = try await send(.playlistinfo)
         
         var mpdQueue: [MPDQueueItem] = []
         var songDict: [String: String] = [:]
@@ -216,8 +210,7 @@ public final class MPDClient: MPDService {
     }
     
     func getStatus() async throws -> MPDStatus {
-        try await send(.status)
-        let response = try await receive()
+        let response = try await send(.status)
         let lines = response.map { $0.split(separator: ": ") }
         
         let statusDict = Dictionary(uniqueKeysWithValues: lines.filter { $0.count > 1 }.map { a in (a[0], a[1]) })
@@ -335,6 +328,7 @@ public final class MPDClient: MPDService {
 @available(macOS 14.0, *)
 @available(iOS 17.0, *)
 @Observable
+@MainActor
 public final class MPDLibraryManager {
     private var client: MPDClient
     
